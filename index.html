@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoTrack AI v3 | Functional Smart Waste System</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{
+--bg:#07111f;
+--card:#0e1b32;
+--line:#1b2d4f;
+--text:#fff;
+--muted:#8ea3c8;
+--green:#19e07a;
+--yellow:#ffc83d;
+--red:#ff5d70;
+--blue:#36a3ff;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;font-family:Inter,Arial,sans-serif;}
+
+body{
+background:
+radial-gradient(circle at top right,rgba(54,163,255,.1),transparent 30%),
+radial-gradient(circle at bottom left,rgba(25,224,122,.08),transparent 25%),
+var(--bg);
+color:var(--text);
+}
+
+.sidebar{
+position:fixed;
+top:0;left:0;bottom:0;
+width:260px;
+background:#0d1930;
+border-right:1px solid var(--line);
+padding:22px;
+}
+
+.brand{
+font-size:28px;
+font-weight:900;
+margin-bottom:30px;
+}
+.brand span{color:var(--green);}
+
+.nav button{
+display:block;
+width:100%;
+padding:14px;
+margin-bottom:10px;
+border:none;
+border-radius:14px;
+background:#12203b;
+color:#fff;
+font-weight:700;
+cursor:pointer;
+transition:.3s;
+}
+
+.nav button:hover,.nav button.active{
+background:#1d3158;
+}
+
+.main{
+margin-left:260px;
+padding:22px;
+}
+
+.top{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:18px;
+flex-wrap:wrap;
+gap:10px;
+}
+
+.top h1{font-size:30px;}
+
+.stats{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+gap:16px;
+margin-bottom:18px;
+}
+
+.card,.panel{
+background:#0e1b32;
+border:1px solid var(--line);
+border-radius:20px;
+padding:18px;
+}
+
+.card h2{font-size:30px;}
+.card small{color:var(--muted);}
+
+.view{display:none;}
+.view.active{display:block;}
+
+.grid{
+display:grid;
+grid-template-columns:1.1fr .9fr;
+gap:18px;
+}
+
+#map{height:420px;border-radius:16px;overflow:hidden;}
+
+.list{
+max-height:650px;
+overflow-y:auto;
+}
+
+.bin{
+background:#0b162d;
+padding:14px;
+border-radius:16px;
+margin-bottom:12px;
+border:1px solid var(--line);
+}
+
+.row{
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:10px;
+}
+
+.loc{font-size:13px;color:var(--muted);margin-top:4px;}
+
+.bar{
+height:10px;
+background:#1a2a49;
+border-radius:30px;
+overflow:hidden;
+margin:10px 0;
+}
+
+.fill{height:100%;border-radius:30px;}
+
+.tag{
+padding:5px 10px;
+border-radius:999px;
+font-size:12px;
+font-weight:800;
+}
+
+.low{background:#143d2b;color:var(--green);}
+.mid{background:#4d3a05;color:var(--yellow);}
+.full{background:#4b1620;color:var(--red);}
+
+.route{
+padding:12px;
+margin-bottom:10px;
+background:#0b162d;
+border-radius:14px;
+border:1px solid var(--line);
+}
+
+.report{
+padding:14px;
+margin-bottom:12px;
+background:#0b162d;
+border-radius:14px;
+border:1px solid var(--line);
+}
+
+canvas{
+background:#0b162d;
+padding:10px;
+border-radius:16px;
+}
+
+footer{
+margin-top:18px;
+text-align:center;
+color:var(--muted);
+}
+
+@media(max-width:1100px){
+.grid{grid-template-columns:1fr;}
+}
+
+@media(max-width:900px){
+.sidebar{
+position:relative;
+width:100%;
+height:auto;
+}
+.main{margin-left:0;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+<div class="brand">♻ <span>EcoTrack</span> AI</div>
+
+<div class="nav">
+<button class="active" onclick="showView('dashboard',this)">Dashboard</button>
+<button onclick="showView('routes',this)">Truck Routes</button>
+<button onclick="showView('forecast',this)">AI Forecast</button>
+<button onclick="showView('reports',this)">Reports</button>
+</div>
+</div>
+
+<div class="main">
+
+<div class="top">
+<h1>Smart Waste Command Center</h1>
+</div>
+
+<div class="stats">
+<div class="card"><small>Total Bins</small><h2>18</h2></div>
+<div class="card"><small>Urgent Pickups</small><h2 style="color:var(--red)">5</h2></div>
+<div class="card"><small>Trips Saved</small><h2 style="color:var(--green)">11</h2></div>
+<div class="card"><small>Efficiency</small><h2 style="color:var(--blue)">93%</h2></div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" class="view active">
+<div class="grid">
+
+<div class="panel">
+<h3>📍 Live Bin Map</h3>
+<div id="map"></div>
+</div>
+
+<div class="panel">
+<h3>📊 Real-Time Bin Status</h3>
+<div class="list" id="binList"></div>
+</div>
+
+</div>
+</div>
+
+<!-- Routes -->
+<div id="routes" class="view">
+<div class="panel">
+<h3>🚛 Optimized Truck Routes</h3>
+
+<div class="route">Truck 1 → Library → Bus Stop → Canteen</div>
+<div class="route">Truck 2 → Auditorium → Parking → Admin Block</div>
+<div class="route">Truck 3 → Food Court → Hostel → Main Gate</div>
+
+<p style="margin-top:15px;color:#8ea3c8;">AI selects nearest full bins first to save fuel and time.</p>
+</div>
+</div>
+
+<!-- Forecast -->
+<div id="forecast" class="view">
+<div class="panel">
+<h3>🤖 AI Forecast - Fill Prediction</h3>
+<canvas id="forecastChart" height="120"></canvas>
+<p style="margin-top:10px;color:#8ea3c8;">Prediction shows bins likely to become full in next 7 days.</p>
+</div>
+</div>
+
+<!-- Reports -->
+<div id="reports" class="view">
+<div class="panel">
+<h3>📑 Daily Reports</h3>
+
+<div class="report">Today Collections: 12 bins emptied</div>
+<div class="report">Average Fill Rate: 63%</div>
+<div class="report">Fuel Saved: 18 km optimized routing</div>
+<div class="report">Overflow Prevented: 5 bins serviced early</div>
+
+<canvas id="reportChart" height="120"></canvas>
+</div>
+</div>
+
+<footer>
+EcoTrack AI v3 • Fully Functional Demo Dashboard
+</footer>
+
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const bins=[
+["Bin-01","Main Gate",22,16.5062,80.6480],
+["Bin-02","Canteen",68,16.5080,80.6500],
+["Bin-03","Library",96,16.5045,80.6460],
+["Bin-04","Hostel",44,16.5030,80.6495],
+["Bin-05","Parking",56,16.5075,80.6455],
+["Bin-06","Auditorium",89,16.5090,80.6470],
+["Bin-07","Bus Stop",91,16.5098,80.6499],
+["Bin-08","Food Court",64,16.5067,80.6530]
+];
+
+function color(v){
+if(v>=85)return "#ff5d70";
+if(v>=55)return "#ffc83d";
+return "#19e07a";
+}
+
+function tag(v){
+if(v>=85)return["FULL","full"];
+if(v>=55)return["MEDIUM","mid"];
+return["LOW","low"];
+}
+
+const map=L.map('map').setView([16.5062,80.6480],15);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+bins.forEach(b=>{
+L.circleMarker([b[3],b[4]],{
+radius:10,
+color:color(b[2]),
+fillColor:color(b[2]),
+fillOpacity:.95
+}).addTo(map).bindPopup(b[0]+"<br>"+b[1]+"<br>"+b[2]+"%");
+});
+
+let html="";
+bins.forEach(b=>{
+let t=tag(b[2]);
+html+=`
+<div class="bin">
+<div class="row">
+<div>
+<b>${b[0]}</b>
+<div class="loc">${b[1]}</div>
+</div>
+<div class="tag ${t[1]}">${t[0]}</div>
+</div>
+
+<div class="bar">
+<div class="fill" style="width:${b[2]}%;background:${color(b[2])}"></div>
+</div>
+
+<div class="row">
+<small>${b[2]}% Full</small>
+<small>${100-b[2]}% Free</small>
+</div>
+</div>`;
+});
+document.getElementById("binList").innerHTML=html;
+
+function showView(id,btn){
+document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+document.getElementById(id).classList.add("active");
+
+document.querySelectorAll(".nav button").forEach(b=>b.classList.remove("active"));
+btn.classList.add("active");
+}
+
+new Chart(document.getElementById("forecastChart"),{
+type:"line",
+data:{
+labels:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+datasets:[{
+label:"Predicted Full Bins",
+data:[4,5,6,7,5,8,6],
+borderColor:"#36a3ff",
+backgroundColor:"rgba(54,163,255,.15)",
+fill:true,
+tension:.4
+}]
+}
+});
+
+new Chart(document.getElementById("reportChart"),{
+type:"bar",
+data:{
+labels:["Mon","Tue","Wed","Thu","Fri","Sat"],
+datasets:[{
+label:"Bins Emptied",
+data:[8,12,10,14,9,12],
+backgroundColor:"#19e07a"
+}]
+}
+});
+</script>
+
+</body>
+</html>
